@@ -17,6 +17,7 @@ import { scheduleWebhookDispatch } from "@/features/webhook/mutations";
 export type PollOption = {
   startTime: Date;
   duration: number;
+  maxYesVotes?: number | null;
 };
 
 export type CreatePollParams = {

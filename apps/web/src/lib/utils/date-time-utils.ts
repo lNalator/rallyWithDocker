@@ -26,6 +26,7 @@ export const encodeDateOption = (option: DateTimeOption) => {
 export interface ParsedDateOption {
   type: "date";
   optionId: string;
+  maxYesVotes: number | null;
   day: string;
   dow: string;
   month: string;
@@ -35,6 +36,7 @@ export interface ParsedDateOption {
 export interface ParsedTimeSlotOption {
   type: "timeSlot";
   optionId: string;
+  maxYesVotes: number | null;
   day: string;
   dow: string;
   month: string;

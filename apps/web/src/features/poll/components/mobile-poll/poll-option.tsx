@@ -22,6 +22,9 @@ import { VoteSegmentedControl } from "../vote-segmented-control";
 export interface PollOptionProps {
   children?: React.ReactNode;
   yesScore: number;
+  yesVoteLimit: number | null;
+  isFull: boolean;
+  hasExistingYesVote?: boolean;
   ifNeedBeScore: number;
   editable?: boolean;
   vote?: VoteType;
@@ -42,6 +45,9 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
   optionId,
   optionLabel,
   yesScore,
+  yesVoteLimit,
+  isFull,
+  hasExistingYesVote = false,
   ifNeedBeScore,
   allowTentativeVotes = true,
 }) => {
@@ -69,7 +75,26 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
       >
         {showVote ? <VoteIcon type={vote} /> : null}
       </span>
-      {children}
+      <div className="min-w-0">
+        {children}
+        {yesVoteLimit !== null ? (
+          <span className="ml-2 text-muted-foreground text-xs">
+            {isFull ? (
+              <Trans
+                i18nKey="optionVoteLimitReached"
+                defaults="Full (max {limit} yes votes)"
+                values={{ limit: yesVoteLimit }}
+              />
+            ) : (
+              <Trans
+                i18nKey="optionVoteLimitInfo"
+                defaults="Max {limit} yes votes"
+                values={{ limit: yesVoteLimit }}
+              />
+            )}
+          </span>
+        ) : null}
+      </div>
       <IfScoresVisible>
         <Button
           {...dialog.triggerProps}
@@ -117,6 +142,7 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
             onChange={onChange}
             optionLabel={optionLabel}
             allowTentativeVotes={allowTentativeVotes}
+            yesDisabled={isFull && !hasExistingYesVote}
           />
         </m.div>
       ) : null}

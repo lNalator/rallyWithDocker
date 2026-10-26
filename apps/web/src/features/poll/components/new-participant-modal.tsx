@@ -162,6 +162,11 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
         return t("newParticipantFormErrorPollFull", {
           defaultValue: "This poll is no longer accepting responses.",
         });
+      case "optionFull":
+        return t("optionVoteLimitSubmitError", {
+          defaultValue:
+            "One or more options are full. Close this form, remove your Yes vote from a full option, and try again.",
+        });
       case "tooManyRequests":
         return t("newParticipantFormErrorTooManyRequests", {
           defaultValue:
