@@ -22,7 +22,7 @@ services:
     image: ${RALLLY_IMAGE:-ghcr.io/lnalator/rallywithdocker:staging}
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3200}:3002"
+      - "${APP_PORT:-3200}:3000"
     depends_on:
       rallly_db:
         condition: service_healthy
