@@ -1,0 +1,35 @@
+# Déployé par .github/workflows/deploy.yml (copié en ~/apps/rallly/compose.yaml sur la VM).
+# Secrets dans ~/apps/rallly/.env : voir .env.prod.example.
+# Pas de reverse proxy pour l'instant : Rallly est publié sur APP_PORT (3200 par défaut).
+name: rallly # fixe le nom du projet : sinon il dépendrait du dossier (app/)
+
+services:
+  rallly_db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    volumes:
+      - db-data:/var/lib/postgresql
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=rallly
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rallly:
+    image: ${RALLLY_IMAGE:-ghcr.io/lnalator/rallywithdocker:staging}
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3200}:3002"
+    depends_on:
+      rallly_db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@rallly_db/rallly
+    env_file:
+      - .env
+
+volumes:
+  db-data:
