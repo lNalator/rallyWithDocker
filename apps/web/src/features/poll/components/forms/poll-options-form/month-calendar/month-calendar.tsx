@@ -138,6 +138,7 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
         const start =
           option.type === "timeSlot" ? option.start : middayOf(option.date);
         return {
+          ...option,
           type: "timeSlot",
           start,
           end: addMinutesToWallTime(start, minutes),

@@ -77,8 +77,15 @@ function getDefaultValues(poll: PollDetails): NewEventData {
             type: "timeSlot" as const,
             start,
             end: addMinutesToWallTime(start, option.duration),
+            id: option.id,
+            maxYesVotes: option.maxYesVotes,
           }
-        : { type: "date" as const, date: start.slice(0, 10) };
+        : {
+            type: "date" as const,
+            date: start.slice(0, 10),
+            id: option.id,
+            maxYesVotes: option.maxYesVotes,
+          };
     }),
     timeZone: poll.timeZone ?? "",
     // A timed poll with no stored zone was locked to a single wall-clock time.
@@ -114,7 +121,10 @@ function getDateChanges({
       ? data.timeZone || fallbackTimeZone
       : null;
 
-  const encodedOptions = data.options.map(encodeDateOption);
+  const encodedOptions = data.options.map((option) => ({
+    option,
+    value: encodeDateOption(option),
+  }));
 
   // When the frame changes the stored instants no longer match it, so every
   // option is re-stored from the form's wall-clock under the new frame, which
@@ -126,17 +136,24 @@ function getDateChanges({
     ? poll.options
     : poll.options.filter(
         (option) =>
-          !encodedOptions.includes(encodeStoredOption(option, poll.timeZone)),
-      );
-
-  const optionsToAdd = frameChanged
-    ? encodedOptions
-    : encodedOptions.filter(
-        (encoded) =>
-          !poll.options.some(
-            (option) => encodeStoredOption(option, poll.timeZone) === encoded,
+          !encodedOptions.some(
+            ({ value }) => encodeStoredOption(option, poll.timeZone) === value,
           ),
       );
+
+  const newOptions = frameChanged
+    ? encodedOptions
+    : encodedOptions.filter(
+        ({ value }) =>
+          !poll.options.some(
+            (option) => encodeStoredOption(option, poll.timeZone) === value,
+          ),
+      );
+  const optionsToAdd = newOptions.map(({ option }) => ({
+    startDate: option.type === "date" ? option.date : option.start,
+    endDate: option.type === "timeSlot" ? option.end : undefined,
+    maxYesVotes: option.maxYesVotes ?? null,
+  }));
 
   if (
     !frameChanged &&
@@ -225,6 +242,23 @@ export function EditPoll({
       input.optionsToAdd = dateChanges.optionsToAdd;
     }
 
+    const deletedOptionIds = new Set(
+      dateChanges?.optionsToDelete.map((option) => option.id) ?? [],
+    );
+    const optionVoteLimits = data.options.flatMap((option) => {
+      if (!option.id || deletedOptionIds.has(option.id)) {
+        return [];
+      }
+      const original = poll.options.find(({ id }) => id === option.id);
+      const maxYesVotes = option.maxYesVotes ?? null;
+      return original && original.maxYesVotes !== maxYesVotes
+        ? [{ id: option.id, maxYesVotes }]
+        : [];
+    });
+    if (optionVoteLimits.length > 0) {
+      input.optionVoteLimits = optionVoteLimits;
+    }
+
     const settingsChanged = settingFields.some(isChanged);
     if (settingsChanged) {
       input.hideParticipants = data.hideParticipants;
@@ -234,7 +268,12 @@ export function EditPoll({
       input.requireParticipantEmail = data.requireParticipantEmail;
     }
 
-    if (!detailsChanged && !dateChanges && !settingsChanged) {
+    if (
+      !detailsChanged &&
+      !dateChanges &&
+      !settingsChanged &&
+      optionVoteLimits.length === 0
+    ) {
       router.push(returnHref);
       return;
     }

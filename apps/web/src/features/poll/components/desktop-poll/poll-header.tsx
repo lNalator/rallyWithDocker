@@ -2,8 +2,9 @@ import { cn } from "@rallly/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@rallly/ui/tooltip";
 import { ClockIcon } from "lucide-react";
 import type * as React from "react";
-import { useOptions } from "@/features/poll/components/poll-context";
+import { useOptions, usePoll } from "@/features/poll/components/poll-context";
 import { ConnectedScoreSummary } from "@/features/poll/components/score-summary";
+import { Trans } from "@/i18n/client";
 
 const TimeRange: React.FunctionComponent<{
   start: string;
@@ -58,6 +59,7 @@ const scoreRowTop = monthRowHeight + dayRowHeight;
 
 const PollHeader = () => {
   const { options } = useOptions();
+  const { getScore } = usePoll();
 
   const monthGroups: { month: string; year: string; count: number }[] = [];
 
@@ -156,6 +158,23 @@ const PollHeader = () => {
                     end={option.endTime}
                     duration={option.duration}
                   />
+                ) : null}
+                {option.maxYesVotes !== null ? (
+                  <span className="text-muted-foreground text-xs">
+                    {getScore(option.optionId).yes >= option.maxYesVotes ? (
+                      <Trans
+                        i18nKey="optionVoteLimitReached"
+                        defaults="Full (max {limit} yes votes)"
+                        values={{ limit: option.maxYesVotes }}
+                      />
+                    ) : (
+                      <Trans
+                        i18nKey="optionVoteLimitInfo"
+                        defaults="Max {limit} yes votes"
+                        values={{ limit: option.maxYesVotes }}
+                      />
+                    )}
+                  </span>
                 ) : null}
                 <ConnectedScoreSummary optionId={option.optionId} />
               </div>

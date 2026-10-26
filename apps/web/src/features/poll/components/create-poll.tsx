@@ -286,6 +286,7 @@ export const CreatePoll = ({
               options: required(formData?.options).map((option) => ({
                 startDate: option.type === "date" ? option.date : option.start,
                 endDate: option.type === "timeSlot" ? option.end : undefined,
+                maxYesVotes: option.maxYesVotes ?? null,
               })),
             });
 

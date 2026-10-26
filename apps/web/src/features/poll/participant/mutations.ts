@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { Prisma, VoteType } from "@rallly/database";
-import { prisma } from "@rallly/database";
+import type { VoteType } from "@rallly/database";
+import { Prisma, prisma } from "@rallly/database";
 import { recordPollActivities } from "@/features/activity/mutations";
 import { MAX_PARTICIPANTS } from "@/features/poll/constants";
 import {
@@ -13,7 +13,12 @@ import { generateAccessToken } from "@/features/poll/utils";
 import type { SpaceTier } from "@/features/space/schema";
 import { scheduleWebhookDispatch } from "@/features/webhook/mutations";
 
-type WriteRefusal = "notFound" | "closed" | "full" | "tentativeVotesNotAllowed";
+type WriteRefusal =
+  | "notFound"
+  | "closed"
+  | "full"
+  | "optionFull"
+  | "tentativeVotesNotAllowed";
 
 class WriteRefusedError extends Error {
   constructor(public readonly reason: WriteRefusal) {
@@ -90,6 +95,71 @@ async function listValidOptionIds(
     select: { id: true },
   });
   return new Set(options.map((option) => option.id));
+}
+
+async function assertVoteCapacity({
+  tx,
+  pollId,
+  votes,
+  excludingParticipantId,
+  existingYesOptionIds = new Set(),
+}: {
+  tx: Prisma.TransactionClient;
+  pollId: string;
+  votes: { optionId: string; type: VoteType }[];
+  excludingParticipantId?: string;
+  existingYesOptionIds?: Set<string>;
+}) {
+  const yesOptionIds = [
+    ...new Set(
+      votes.filter((vote) => vote.type === "yes").map((vote) => vote.optionId),
+    ),
+  ];
+
+  if (yesOptionIds.length === 0) {
+    return;
+  }
+
+  const cappedOptions = await tx.option.findMany({
+    where: {
+      pollId,
+      id: { in: yesOptionIds },
+      maxYesVotes: { not: null },
+    },
+    select: { id: true, maxYesVotes: true },
+  });
+
+  if (cappedOptions.length === 0) {
+    return;
+  }
+
+  const participantFilter = excludingParticipantId
+    ? Prisma.sql`AND participant_id <> ${excludingParticipantId}`
+    : Prisma.empty;
+  const counts = await tx.$queryRaw<
+    { option_id: string; yes_count: number }[]
+  >(Prisma.sql`
+    SELECT option_id, COUNT(DISTINCT participant_id)::int AS yes_count
+    FROM votes
+    WHERE poll_id = ${pollId}
+      AND type = 'yes'
+      AND option_id IN (${Prisma.join(cappedOptions.map(({ id }) => id))})
+      ${participantFilter}
+    GROUP BY option_id
+  `);
+  const countByOptionId = new Map(
+    counts.map(({ option_id, yes_count }) => [option_id, yes_count]),
+  );
+
+  for (const option of cappedOptions) {
+    if (
+      option.maxYesVotes !== null &&
+      !existingYesOptionIds.has(option.id) &&
+      (countByOptionId.get(option.id) ?? 0) >= option.maxYesVotes
+    ) {
+      throw new WriteRefusedError("optionFull");
+    }
+  }
 }
 
 function refusal(error: unknown) {
@@ -170,6 +240,7 @@ export async function addParticipant({
       );
 
       await lockOpenPoll(tx, pollId, validVotes);
+      await assertVoteCapacity({ tx, pollId, votes: validVotes });
 
       // Counted under the lock so two responses cannot both pass at the cap.
       const participantCount = await tx.participant.count({
@@ -293,12 +364,25 @@ export async function updateParticipantVotes({
       await lockOpenPoll(tx, pollId, votes);
       await assertParticipantInPoll(tx, participantId, pollId);
 
-      await tx.vote.deleteMany({ where: { participantId } });
-
       const validOptionIds = await listValidOptionIds(tx, pollId);
       const validVotes = votes.filter(({ optionId }) =>
         validOptionIds.has(optionId),
       );
+      const existingYesVotes = await tx.vote.findMany({
+        where: { participantId, pollId, type: "yes" },
+        select: { optionId: true },
+      });
+      await assertVoteCapacity({
+        tx,
+        pollId,
+        votes: validVotes,
+        excludingParticipantId: participantId,
+        existingYesOptionIds: new Set(
+          existingYesVotes.map(({ optionId }) => optionId),
+        ),
+      });
+
+      await tx.vote.deleteMany({ where: { participantId } });
 
       await tx.vote.createMany({
         data: validVotes.map(({ optionId, type }) => ({
