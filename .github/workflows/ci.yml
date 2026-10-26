@@ -89,7 +89,7 @@ jobs:
           cat > apps/web/.env <<'EOF'
           SECRET_PASSWORD=0123456789abcdef0123456789abcdef
           SUPPORT_EMAIL=support@example.com
-          NEXT_PUBLIC_BASE_URL=http://localhost:3200
+          NEXT_PUBLIC_BASE_URL=http://localhost:3000
           EOF
           docker compose up -d --build --wait --wait-timeout 60
 
@@ -100,11 +100,11 @@ jobs:
       - name: Check status endpoint and login page respond
         run: |
           status=$(curl -fsS --connect-timeout 5 --max-time 15 \
-            http://localhost:3200/api/status)
+            http://localhost:3000/api/status)
           echo "$status"
           echo "$status" | jq -e '.database == "connected"'
           curl -fsSL --connect-timeout 5 --max-time 15 \
-            -o /dev/null http://localhost:3200/login
+            -o /dev/null http://localhost:3000/login
 
       - uses: ./.github/actions/setup-node
       - uses: ./.github/actions/pnpm-install
