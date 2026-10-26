@@ -14,6 +14,7 @@ import { useMutation } from "@tanstack/react-query";
 import { MailIcon } from "lucide-react";
 import React from "react";
 import { useForm } from "react-hook-form";
+import * as z from "zod";
 import { AnimatedHeight } from "@/components/animated-height";
 import {
   EmptyState,
@@ -31,7 +32,10 @@ import {
   InviteeRow,
 } from "@/features/poll/components/invitee-list";
 import { sendPollInviteAction } from "@/features/poll/invite/actions";
-import { sendPollInviteSchema } from "@/features/poll/invite/schema";
+import {
+  inviteEmailsSchema,
+  MAX_INVITES_PER_SUBMIT,
+} from "@/features/poll/invite/schema";
 import type { PollStatus } from "@/features/poll/schema";
 import { useUser } from "@/features/user/client";
 import { Trans, useTranslation } from "@/i18n/client";
@@ -44,9 +48,10 @@ type Row = {
   inviteUrl?: string;
 };
 
-// Same rule as the server, so a client accepted address is never refused
-const inviteFormSchema = sendPollInviteSchema.pick({ email: true });
-type InviteFormValues = { email: string };
+// Each address follows the server rule, so a client accepted address is never refused
+const inviteFormSchema = z.object({ email: inviteEmailsSchema });
+type InviteFormInput = z.input<typeof inviteFormSchema>;
+type InviteFormValues = z.output<typeof inviteFormSchema>;
 
 /**
  * The list is fetched when the dialog mounts rather than with the page: most
@@ -72,7 +77,7 @@ export function InviteByEmail({
   const invites = invitesQuery.data ?? [];
   const isOpen = pollStatus === "open";
 
-  const form = useForm<InviteFormValues>({
+  const form = useForm<InviteFormInput, unknown, InviteFormValues>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: { email: "" },
   });
@@ -182,31 +187,39 @@ export function InviteByEmail({
   const onInvalid = () => {
     announce(
       t("shareDialogInvalidEmail", {
-        defaultValue: "Enter a single valid email address",
+        defaultValue: "Enter valid email addresses, up to {max} at a time",
+        max: MAX_INVITES_PER_SUBMIT,
       }),
     );
     form.setFocus("email");
   };
 
-  const onValid = ({ email: address }: InviteFormValues) => {
+  const onValid = ({ email: addresses }: InviteFormValues) => {
     if (isFree) {
       showPayWall({ from: "invite-dialog", pollId: pollId });
       return;
     }
-    if (rows.some((row) => row.email.toLowerCase() === address)) {
-      const message = t("shareDialogAlreadyInvited", {
-        defaultValue: "{email} is already invited",
-        email: address,
-      });
-      toast(message);
-      announce(message);
-      form.setFocus("email");
-      return;
+    const known = new Set(rows.map((row) => row.email.toLowerCase()));
+    const fresh = addresses.filter((address) => !known.has(address));
+    for (const address of addresses) {
+      if (known.has(address)) {
+        const message = t("shareDialogAlreadyInvited", {
+          defaultValue: "{email} is already invited",
+          email: address,
+        });
+        toast(message);
+        announce(message);
+      }
     }
-    setSending((prev) => [address, ...prev]);
     form.reset();
     form.setFocus("email");
-    sendInvite.mutate({ pollId, email: address });
+    if (fresh.length === 0) {
+      return;
+    }
+    setSending((prev) => [...fresh, ...prev]);
+    for (const address of fresh) {
+      sendInvite.mutate({ pollId, email: address });
+    }
   };
 
   return (
@@ -226,7 +239,8 @@ export function InviteByEmail({
           <InputGroupInput
             {...form.register("email")}
             id="share-dialog-email"
-            type="email"
+            // type="email" would reject a list of addresses
+            type="text"
             inputMode="email"
             autoComplete="off"
             {...passwordManagerIgnoreProps}
