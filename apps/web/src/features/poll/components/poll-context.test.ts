@@ -46,13 +46,35 @@ describe("createOptionsContextValue — all-day options are timezone-invariant",
     expect(result.options[0]).toMatchObject({ day: "1", month: "Jul" });
   });
 
+  it("includes the final day when formatting a multi-day option", () => {
+    const result = createOptionsContextValue({
+      pollOptions: [
+        {
+          ...allDayOption,
+          endDate: new Date("2026-07-04T00:00:00Z"),
+        },
+      ],
+      pollTimeZone: null,
+      locale: "en",
+      timeZone: "UTC",
+    });
+
+    expect(result.options[0]).toMatchObject({
+      type: "date",
+      day: "1",
+      month: "Jul",
+      endDay: "4",
+      endMonth: "Jul",
+    });
+  });
+
   it("carries the yes-vote limit into the rendered option", () => {
     const result = createOptionsContextValue({
       pollOptions: [{ ...allDayOption, maxYesVotes: 20 }],
       pollTimeZone: null,
       locale: "en",
     });
-
+    expect(result.options[0]).toMatchObject({ maxYesVotes: 20 });
     expect(result.options[0]).toMatchObject({ maxYesVotes: 20 });
   });
 });

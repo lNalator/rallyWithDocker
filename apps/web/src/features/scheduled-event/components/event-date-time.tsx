@@ -117,6 +117,19 @@ export function EventTimeRange({
   className?: string;
 }) {
   if (allDay) {
+    const startDate = start instanceof Date ? start : new Date(start);
+    const endDate = end instanceof Date ? end : new Date(end);
+    if (endDate.getTime() - startDate.getTime() > 24 * 60 * 60 * 1000) {
+      return (
+        <span className={className}>
+          <CalendarDate value={startDate} />
+          {" – "}
+          <CalendarDate
+            value={new Date(endDate.getTime() - 24 * 60 * 60 * 1000)}
+          />
+        </span>
+      );
+    }
     return (
       <span className={className}>
         <Trans i18nKey="allDay" defaults="All day" />

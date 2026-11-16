@@ -128,6 +128,7 @@ export function createOptionsContextValue({
     id: string;
     startTime: Date;
     duration: number;
+    endDate?: Date | null;
     maxYesVotes?: number | null;
   }[];
   /**
@@ -195,6 +196,9 @@ export function createOptionsContextValue({
           locale,
           timeZone: "UTC",
         });
+        const endParts = option.endDate
+          ? formatDateParts(option.endDate, { locale, timeZone: "UTC" })
+          : null;
 
         return {
           optionId: option.id,
@@ -204,6 +208,14 @@ export function createOptionsContextValue({
           day: parts.day,
           dow: parts.weekday,
           year: parts.year,
+          ...(endParts
+            ? {
+                endDay: endParts.day,
+                endDow: endParts.weekday,
+                endMonth: endParts.month,
+                endYear: endParts.year,
+              }
+            : {}),
         } satisfies ParsedDateOption;
       }),
     };

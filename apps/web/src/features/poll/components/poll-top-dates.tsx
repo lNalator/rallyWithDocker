@@ -14,6 +14,7 @@ type TopOption = {
   id: string;
   startTime: Date;
   duration: number;
+  endDate?: Date | null;
   votes: { type: VoteType; count: number }[];
 };
 
@@ -45,24 +46,45 @@ export function PollTopDates({
                   timeZone={timeZone}
                 />
                 <div className="min-w-0 text-sm">
-                  <EventDate
-                    value={option.startTime}
-                    allDay={allDay}
-                    timeZone={timeZone}
-                    preset="weekday"
-                    className="block truncate font-medium"
-                  />
-                  <EventTimeRange
-                    start={option.startTime}
-                    end={
-                      new Date(
-                        option.startTime.getTime() + option.duration * 60_000,
-                      )
-                    }
-                    allDay={allDay}
-                    timeZone={timeZone}
-                    className="block truncate text-muted-foreground"
-                  />
+                  {option.endDate ? (
+                    <span className="block truncate font-medium">
+                      <EventDate
+                        value={option.startTime}
+                        allDay={allDay}
+                        timeZone={timeZone}
+                        preset="dateFull"
+                      />
+                      {" – "}
+                      <EventDate
+                        value={option.endDate}
+                        allDay
+                        timeZone={null}
+                        preset="dateFull"
+                      />
+                    </span>
+                  ) : (
+                    <>
+                      <EventDate
+                        value={option.startTime}
+                        allDay={allDay}
+                        timeZone={timeZone}
+                        preset="weekday"
+                        className="block truncate font-medium"
+                      />
+                      <EventTimeRange
+                        start={option.startTime}
+                        end={
+                          new Date(
+                            option.startTime.getTime() +
+                              option.duration * 60_000,
+                          )
+                        }
+                        allDay={allDay}
+                        timeZone={timeZone}
+                        className="block truncate text-muted-foreground"
+                      />
+                    </>
+                  )}
                 </div>
               </div>
               <VoteBar

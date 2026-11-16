@@ -93,9 +93,15 @@ const guestPollCreationIpLimit = createGuestIpRateLimitMiddleware({
 
 // Mirrors the auto-close-polls house-keeping task: an option ends at
 // start + duration, with all-day options (duration 0) treated as 24h.
-const optionEndsInFuture = (option: { startTime: Date; duration: number }) =>
-  option.startTime.getTime() +
-    (option.duration === 0 ? 24 * 60 : option.duration) * 60_000 >
+const optionEndsInFuture = (option: {
+  startTime: Date;
+  duration: number;
+  endDate: Date | null;
+}) =>
+  (option.endDate
+    ? option.endDate.getTime() + 24 * 60 * 60_000
+    : option.startTime.getTime() +
+      (option.duration === 0 ? 24 * 60 : option.duration) * 60_000) >
   Date.now();
 
 async function mintConferencing({
@@ -157,10 +163,12 @@ const toOptionSnapshot = (option: {
   id: string;
   startTime: Date;
   duration: number;
+  endDate: Date | null;
 }) => ({
   optionId: option.id,
   start: option.startTime.toISOString(),
   duration: option.duration,
+  endDate: option.endDate?.toISOString().slice(0, 10) ?? null,
 });
 
 // A poll's paid features follow the poll's space, which is not always the
@@ -203,6 +211,7 @@ export const polls = router({
           .object({
             startDate: z.string(),
             endDate: z.string().optional(),
+            rangeEndDate: z.iso.date().optional(),
             maxYesVotes: z
               .number()
               .int()
@@ -211,6 +220,14 @@ export const polls = router({
               .nullable()
               .optional(),
           })
+          .refine(
+            (option) =>
+              !option.rangeEndDate ||
+              (!option.endDate &&
+                option.startDate.length === 10 &&
+                option.rangeEndDate >= option.startDate),
+            "The range end must be on or after the start date",
+          )
           .array()
           .min(1),
       }),
@@ -304,6 +321,9 @@ export const polls = router({
         duration: option.endDate
           ? wallTimeDiffInMinutes(option.startDate, option.endDate)
           : 0,
+        endDate: option.rangeEndDate
+          ? wallTimeToInstant(option.rangeEndDate, "UTC")
+          : null,
         maxYesVotes: option.maxYesVotes ?? null,
       }));
 
@@ -470,6 +490,7 @@ export const polls = router({
           .object({
             startDate: z.string(),
             endDate: z.string().optional(),
+            rangeEndDate: z.iso.date().optional(),
             maxYesVotes: z
               .number()
               .int()
@@ -478,6 +499,14 @@ export const polls = router({
               .nullable()
               .optional(),
           })
+          .refine(
+            (option) =>
+              !option.rangeEndDate ||
+              (!option.endDate &&
+                option.startDate.length === 10 &&
+                option.rangeEndDate >= option.startDate),
+            "The range end must be on or after the start date",
+          )
           .array()
           .optional(),
         optionVoteLimits: z
@@ -585,29 +614,20 @@ export const polls = router({
 
       await prisma.$transaction(async (tx) => {
         const newOptions =
-          input.optionsToAdd?.map((option) => {
-            if (option.endDate) {
-              return {
-                startTime: wallTimeToInstant(
-                  option.startDate,
-                  input.timeZone ?? "UTC",
-                ),
-                duration: wallTimeDiffInMinutes(
-                  option.startDate,
-                  option.endDate,
-                ),
-                maxYesVotes: option.maxYesVotes ?? null,
-                pollId,
-              };
-            } else {
-              return {
-                startTime: wallTimeToInstant(option.startDate, "UTC"),
-                duration: 0,
-                maxYesVotes: option.maxYesVotes ?? null,
-                pollId,
-              };
-            }
-          }) ?? [];
+          input.optionsToAdd?.map((option) => ({
+            startTime: wallTimeToInstant(
+              option.startDate,
+              option.endDate ? (input.timeZone ?? "UTC") : "UTC",
+            ),
+            duration: option.endDate
+              ? wallTimeDiffInMinutes(option.startDate, option.endDate)
+              : 0,
+            endDate: option.rangeEndDate
+              ? wallTimeToInstant(option.rangeEndDate, "UTC")
+              : null,
+            maxYesVotes: option.maxYesVotes ?? null,
+            pollId,
+          })) ?? [];
 
         // Lock the poll row for the rest of the transaction. Concurrent edits
         // then queue, so each reads the values the previous one committed and
@@ -701,7 +721,12 @@ export const polls = router({
                     in: input.optionsToDelete,
                   },
                 },
-                select: { id: true, startTime: true, duration: true },
+                select: {
+                  id: true,
+                  startTime: true,
+                  duration: true,
+                  endDate: true,
+                },
               })
             : [];
 
@@ -731,7 +756,12 @@ export const polls = router({
           newOptions.length > 0
             ? await tx.option.createManyAndReturn({
                 data: newOptions,
-                select: { id: true, startTime: true, duration: true },
+                select: {
+                  id: true,
+                  startTime: true,
+                  duration: true,
+                  endDate: true,
+                },
               })
             : [];
 
@@ -1076,6 +1106,7 @@ export const polls = router({
               id: true,
               startTime: true,
               duration: true,
+              endDate: true,
             },
             orderBy: {
               startTime: "asc",
@@ -1272,6 +1303,7 @@ export const polls = router({
         select: {
           startTime: true,
           duration: true,
+          endDate: true,
         },
       });
 
@@ -1285,6 +1317,7 @@ export const polls = router({
       const eventTimes = getScheduledEventTimes({
         startTime: option.startTime,
         duration: option.duration,
+        endDate: option.endDate,
         timeZone: poll.timeZone,
       });
 
@@ -1827,6 +1860,7 @@ export const polls = router({
             select: {
               startTime: true,
               duration: true,
+              endDate: true,
             },
           },
         },

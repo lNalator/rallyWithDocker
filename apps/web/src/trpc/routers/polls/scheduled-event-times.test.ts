@@ -40,6 +40,21 @@ describe("getScheduledEventTimes", () => {
     });
   });
 
+  it("includes the final date of a multi-day option in the all-day event", () => {
+    const result = getScheduledEventTimes({
+      startTime: new Date("2026-03-23T00:00:00Z"),
+      endDate: new Date("2026-03-27T00:00:00Z"),
+      duration: 0,
+      timeZone: null,
+    });
+    expect(result).toEqual({
+      allDay: true,
+      start: new Date("2026-03-23T00:00:00Z"),
+      end: new Date("2026-03-28T00:00:00Z"),
+      timeZone: null,
+    });
+  });
+
   it("drops the poll's time zone from all-day events without shifting a UTC midnight start", () => {
     const result = getScheduledEventTimes({
       startTime: new Date("2026-03-23T00:00:00Z"),

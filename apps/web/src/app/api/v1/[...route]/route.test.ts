@@ -571,8 +571,8 @@ describe("API v1 - /polls", () => {
           kind: "date",
           options: [
             { date: "2025-01-15" },
-            { date: "2025-01-16" },
-            { date: "2025-01-17" },
+            { date: "2025-01-16", endDate: "2025-01-19" },
+            { date: "2025-01-20" },
           ],
         }),
       });
@@ -597,9 +597,10 @@ describe("API v1 - /polls", () => {
             {
               startTime: new Date("2025-01-16T00:00:00.000Z"),
               duration: 0,
+              endDate: new Date("2025-01-19T00:00:00.000Z"),
             },
             {
-              startTime: new Date("2025-01-17T00:00:00.000Z"),
+              startTime: new Date("2025-01-20T00:00:00.000Z"),
               duration: 0,
             },
           ],

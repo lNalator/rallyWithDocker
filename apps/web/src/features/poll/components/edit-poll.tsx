@@ -48,12 +48,14 @@ const toPollWallTime = (value: Date, timeZone: string | null) =>
   instantToWallTime(value, timeZone ?? "UTC");
 
 const encodeStoredOption = (
-  option: { startTime: Date; duration: number },
+  option: { startTime: Date; duration: number; endDate: Date | null },
   timeZone: string | null,
 ) => {
   const start = toPollWallTime(option.startTime, timeZone);
   return option.duration === 0
-    ? start.slice(0, 10)
+    ? option.endDate
+      ? `${start.slice(0, 10)}~${option.endDate.toISOString().slice(0, 10)}`
+      : start.slice(0, 10)
     : `${start}/${addMinutesToWallTime(start, option.duration)}`;
 };
 
@@ -83,6 +85,9 @@ function getDefaultValues(poll: PollDetails): NewEventData {
         : {
             type: "date" as const,
             date: start.slice(0, 10),
+            ...(option.endDate
+              ? { endDate: option.endDate.toISOString().slice(0, 10) }
+              : {}),
             id: option.id,
             maxYesVotes: option.maxYesVotes,
           };
@@ -152,6 +157,7 @@ function getDateChanges({
   const optionsToAdd = newOptions.map(({ option }) => ({
     startDate: option.type === "date" ? option.date : option.start,
     endDate: option.type === "timeSlot" ? option.end : undefined,
+    rangeEndDate: option.type === "date" ? option.endDate : undefined,
     maxYesVotes: option.maxYesVotes ?? null,
   }));
 

@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@rallly/ui/dropdown-menu";
+import { Input } from "@rallly/ui/input";
 import { RadioCards, RadioCardsItem } from "@rallly/ui/radio-pills";
 import {
   CalendarIcon,
@@ -76,6 +77,16 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
       : duration !== 0;
 
   const form = useFormContext<NewEventData>();
+  const dragRef = React.useRef<{
+    pointerId: number;
+    start: string;
+    end: string;
+  } | null>(null);
+  const ignoreClickRef = React.useRef(false);
+  const [rangePreview, setRangePreview] = React.useState<{
+    start: string;
+    end: string;
+  } | null>(null);
 
   // Durations currently in use across the timed options. When they all share a
   // single value the radio group selects it; differing values show as "Mixed".
@@ -131,19 +142,43 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
     if (!form.getValues("timeZone")) {
       form.setValue("timeZone", defaultTimeZone);
     }
-    // Normalize every option to a time slot of the chosen duration, keeping the
-    // existing start time (defaulting all-day options to midday).
+    // Preserve each day in a range when switching to time slots.
+    const starts = new Map<
+      string,
+      { start: string; id?: string; maxYesVotes?: number | null }
+    >();
+    options.forEach((option) => {
+      if (option.type === "timeSlot") {
+        starts.set(option.start, {
+          start: option.start,
+          id: option.id,
+          maxYesVotes: option.maxYesVotes,
+        });
+        return;
+      }
+
+      const endDate = option.endDate ?? option.date;
+      let currentDate = dayjs(option.date);
+      while (currentDate.format("YYYY-MM-DD") <= endDate) {
+        const start = middayOf(currentDate.format("YYYY-MM-DD"));
+        if (!starts.has(start)) {
+          starts.set(start, {
+            start,
+            id: endDate === option.date ? option.id : undefined,
+            maxYesVotes: option.maxYesVotes,
+          });
+        }
+        currentDate = currentDate.add(1, "day");
+      }
+    });
     onChange(
-      options.map<DateTimeOption>((option) => {
-        const start =
-          option.type === "timeSlot" ? option.start : middayOf(option.date);
-        return {
-          ...option,
-          type: "timeSlot",
-          start,
-          end: addMinutesToWallTime(start, minutes),
-        };
-      }),
+      [...starts.values()].map(({ start, id, maxYesVotes }) => ({
+        type: "timeSlot",
+        start,
+        end: addMinutesToWallTime(start, minutes),
+        id,
+        maxYesVotes,
+      })),
     );
   };
 
@@ -185,6 +220,78 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
     onNavigationChange: onNavigate,
     date,
   });
+
+  React.useEffect(() => {
+    if (isTimedEvent) {
+      return;
+    }
+
+    const dateAtPoint = (event: PointerEvent) =>
+      document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLElement>("[data-calendar-date]")?.dataset.calendarDate;
+
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const end = dateAtPoint(event);
+      if (end && end !== drag.end) {
+        drag.end = end;
+        setRangePreview({ start: drag.start, end });
+      }
+    };
+
+    const finishDrag = (event: PointerEvent, commit: boolean) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) {
+        return;
+      }
+      dragRef.current = null;
+      setRangePreview(null);
+
+      const end = dateAtPoint(event) ?? drag.end;
+      if (!commit || end === drag.start) {
+        return;
+      }
+
+      const [startDate, endDate] = [drag.start, end].sort();
+      const newOption: DateTimeOption = {
+        type: "date",
+        date: startDate,
+        endDate,
+      };
+      const exists = options.some(
+        (option) =>
+          option.type === "date" &&
+          option.date === startDate &&
+          option.endDate === endDate,
+      );
+      if (!exists) {
+        onChange([...options, newOption]);
+      }
+      onNavigate(new Date(`${endDate}T12:00:00`));
+
+      ignoreClickRef.current = true;
+      window.setTimeout(() => {
+        ignoreClickRef.current = false;
+      }, 0);
+    };
+
+    const onPointerUp = (event: PointerEvent) => finishDrag(event, true);
+    const onPointerCancel = (event: PointerEvent) => finishDrag(event, false);
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
+    };
+  }, [isTimedEvent, onChange, onNavigate, options]);
 
   return (
     <div className="overflow-hidden">
@@ -251,6 +358,25 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
               </div>
               <div className="grid grow grid-cols-7 overflow-hidden rounded-lg border shadow-xs">
                 {datepicker.days.map((day, i) => {
+                  const dayString = formatDateWithoutTime(day.date);
+                  const isSelected = isTimedEvent
+                    ? day.selected
+                    : options.some(
+                        (option) =>
+                          option.type === "date" &&
+                          dayString >= option.date &&
+                          dayString <= (option.endDate ?? option.date),
+                      );
+                  const isInPreview =
+                    !!rangePreview &&
+                    dayString >=
+                      (rangePreview.start < rangePreview.end
+                        ? rangePreview.start
+                        : rangePreview.end) &&
+                    dayString <=
+                      (rangePreview.start > rangePreview.end
+                        ? rangePreview.start
+                        : rangePreview.end);
                   return (
                     <div
                       // biome-ignore lint/suspicious/noArrayIndexKey: Fix this later
@@ -262,12 +388,22 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
                     >
                       <button
                         type="button"
+                        data-calendar-date={dayString}
+                        onPointerDown={(event) => {
+                          if (!isTimedEvent && event.button === 0) {
+                            dragRef.current = {
+                              pointerId: event.pointerId,
+                              start: dayString,
+                              end: dayString,
+                            };
+                          }
+                        }}
                         onClick={() => {
-                          if (
-                            datepicker.selection.some((selectedDate) =>
-                              dayjs(selectedDate).isSame(day.date, "day"),
-                            )
-                          ) {
+                          if (ignoreClickRef.current) {
+                            ignoreClickRef.current = false;
+                            return;
+                          }
+                          if (isSelected) {
                             onChange(removeAllOptionsForDay(options, day.date));
                           } else {
                             const selectedDate = dayjs(day.date)
@@ -307,12 +443,13 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
                         className={cn(
                           "group relative flex h-full w-full items-start justify-end rounded-none px-2.5 py-1.5 font-medium text-sm tracking-tight focus:z-10 focus:rounded-sm",
                           {
+                            "touch-none select-none": !isTimedEvent,
                             "bg-muted text-muted-foreground opacity-50":
                               day.isPast,
-                            "text-rose-500": day.today && !day.selected,
+                            "text-rose-500": day.today && !isSelected,
                             "bg-muted/50 text-muted-foreground":
                               day.outOfMonth && !day.isPast,
-                            "text-foreground": day.selected,
+                            "text-foreground": isSelected || isInPreview,
                           },
                         )}
                       >
@@ -320,7 +457,7 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
                           aria-hidden
                           className={cn(
                             "absolute inset-1 z-0 rounded-md border",
-                            day.selected
+                            isSelected || isInPreview
                               ? "border-accent-border bg-accent shadow-xs group-hover:border-accent-border"
                               : "border-transparent group-hover:border-accent-border group-active:bg-accent",
                           )}
@@ -331,6 +468,14 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
                   );
                 })}
               </div>
+              {!isTimedEvent ? (
+                <p className="mt-2 text-center text-muted-foreground text-xs">
+                  <Trans
+                    i18nKey="monthCalendarRangeHint"
+                    defaults="Click and drag across dates to add a range."
+                  />
+                </p>
+              ) : null}
               <Button className="mt-3" onClick={datepicker.today}>
                 {t("today", { defaultValue: "Today" })}
               </Button>
@@ -339,7 +484,7 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
         </div>
         <div className="flex grow flex-col">
           <div className="min-h-0 grow overflow-auto">
-            {datepicker.selection.length === 0 ? (
+            {options.length === 0 ? (
               <div className="flex h-full items-center justify-center py-12">
                 <EmptyState>
                   <EmptyStateIcon>
@@ -567,31 +712,112 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
               </div>
             ) : (
               <div className="flex flex-wrap gap-3 p-3 sm:gap-4 sm:p-4">
-                {datepicker.selection
-                  .sort((a, b) => a.getTime() - b.getTime())
-                  .map((selectedDate, i) => {
-                    const dateParts = formatDateParts(selectedDate, {
-                      locale,
-                    });
+                {options
+                  .map((option, index) => ({ option, index }))
+                  .filter(
+                    (
+                      item,
+                    ): item is {
+                      option: Extract<DateTimeOption, { type: "date" }>;
+                      index: number;
+                    } => item.option.type === "date",
+                  )
+                  .sort((a, b) => a.option.date.localeCompare(b.option.date))
+                  .map(({ option, index }) => {
+                    const dateParts = formatDateParts(
+                      new Date(`${option.date}T12:00:00`),
+                      { locale },
+                    );
                     return (
-                      <DateCard
-                        // biome-ignore lint/suspicious/noArrayIndexKey: Fix this later
-                        key={i}
-                        day={dateParts.day}
-                        month={dateParts.month}
-                        // annotation={
-                        //   <CompactButton
-                        //     icon={XIcon}
-                        //     onClick={() => {
-                        //       // TODO (Luke Vella) [2022-03-19]: Find cleaner way to manage this state
-                        //       // Quite tedious right now to remove a single element
-                        //       onChange(
-                        //         removeAllOptionsForDay(options, selectedDate),
-                        //       );
-                        //     }}
-                        //   />
-                        // }
-                      />
+                      <div
+                        key={`${option.date}-${option.endDate ?? ""}-${index}`}
+                        className="flex items-center gap-2"
+                      >
+                        <DateCard day={dateParts.day} month={dateParts.month} />
+                        {option.endDate ? (
+                          <>
+                            <Input
+                              aria-label={t("rangeStartDate", {
+                                defaultValue: "Start date",
+                              })}
+                              type="date"
+                              className="w-36"
+                              value={option.date}
+                              onChange={(event) => {
+                                const nextDate = event.target.value;
+                                const oldEndDate = option.endDate;
+                                if (!nextDate || !oldEndDate) return;
+                                const endDate =
+                                  oldEndDate < nextDate
+                                    ? undefined
+                                    : oldEndDate;
+                                onChange(
+                                  options.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          type: "date",
+                                          date: nextDate,
+                                          ...(endDate && endDate !== nextDate
+                                            ? { endDate }
+                                            : {}),
+                                        }
+                                      : item,
+                                  ),
+                                );
+                              }}
+                            />
+                            <span aria-hidden>–</span>
+                            <Input
+                              aria-label={t("rangeEndDate", {
+                                defaultValue: "End date",
+                              })}
+                              type="date"
+                              className="w-36"
+                              value={option.endDate}
+                              onChange={(event) => {
+                                const nextEndDate = event.target.value;
+                                if (!nextEndDate) return;
+                                const nextDate =
+                                  nextEndDate < option.date
+                                    ? nextEndDate
+                                    : option.date;
+                                const endDate =
+                                  nextEndDate <= option.date
+                                    ? undefined
+                                    : nextEndDate;
+                                onChange(
+                                  options.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          type: "date",
+                                          date: nextDate,
+                                          ...(endDate ? { endDate } : {}),
+                                        }
+                                      : item,
+                                  ),
+                                );
+                              }}
+                            />
+                          </>
+                        ) : null}
+                        <Button
+                          aria-label={t("removeDateOption", {
+                            defaultValue: "Remove date option",
+                          })}
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() =>
+                            onChange(
+                              options.filter(
+                                (_, itemIndex) => itemIndex !== index,
+                              ),
+                            )
+                          }
+                        >
+                          <XIcon />
+                        </Button>
+                      </div>
                     );
                   })}
               </div>

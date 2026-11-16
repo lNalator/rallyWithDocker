@@ -18,11 +18,13 @@ export const removeAllOptionsForDay = (
   options: DateTimeOption[],
   date: Date,
 ) => {
+  const day = formatDateWithoutTime(date);
   return options.filter((option) => {
-    return !dayjs(date).isSame(
-      option.type === "date" ? option.date : option.start,
-      "day",
-    );
+    if (option.type === "date") {
+      return day < option.date || day > (option.endDate ?? option.date);
+    }
+
+    return !dayjs(date).isSame(option.start, "day");
   });
 };
 

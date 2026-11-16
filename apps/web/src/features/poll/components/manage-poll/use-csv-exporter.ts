@@ -4,7 +4,10 @@ import { useTranslation } from "@/i18n/client";
 import { useDateTimeConfig } from "@/lib/datetime/client";
 import { instantToWallTime } from "@/lib/datetime/wall-time";
 import { dayjs } from "@/lib/dayjs";
-import { getBrowserTimeZone } from "@/lib/utils/date-time-utils";
+import {
+  getBrowserTimeZone,
+  getOptionDateTimeLabel,
+} from "@/lib/utils/date-time-utils";
 
 export const useCsvExporter = () => {
   const poll = usePoll();
@@ -30,12 +33,7 @@ export const useCsvExporter = () => {
         t("name"),
         t("email"),
         `${t("respondedOn", { defaultValue: "Responded on" })} (${timeZone})`,
-        ...options.map((decodedOption) => {
-          const day = `${decodedOption.dow} ${decodedOption.day} ${decodedOption.month} ${decodedOption.year}`;
-          return decodedOption.type === "date"
-            ? day
-            : `${day} ${decodedOption.startTime} - ${decodedOption.endTime}`;
-        }),
+        ...options.map(getOptionDateTimeLabel),
       ].join(",");
       const rows = participants.map((participant) => {
         return [

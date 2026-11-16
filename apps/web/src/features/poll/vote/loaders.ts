@@ -101,6 +101,7 @@ export const loadVotePage = cache(
         optionId: option.id,
         startTime: option.startTime,
         duration: option.duration,
+        endDate: option.endDate,
         score:
           scoresVisible && scores
             ? (scores.get(option.id) ?? { yes: 0, ifNeedBe: 0 })

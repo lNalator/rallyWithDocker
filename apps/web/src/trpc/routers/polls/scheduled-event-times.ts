@@ -13,10 +13,12 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 export function getScheduledEventTimes({
   startTime,
   duration,
+  endDate,
   timeZone,
 }: {
   startTime: Date;
   duration: number;
+  endDate?: Date | null;
   timeZone: string | null;
 }) {
   if (duration > 0) {
@@ -41,7 +43,11 @@ export function getScheduledEventTimes({
   return {
     allDay: true as const,
     start,
-    end: new Date(start.getTime() + DAY_MS),
+    end: new Date(
+      (endDate
+        ? calendarDateToUTCMidnight(toISODate(endDate)).getTime()
+        : start.getTime()) + DAY_MS,
+    ),
     timeZone: null,
   };
 }

@@ -1,6 +1,7 @@
 export type DateOption = {
   type: "date";
   date: string;
+  endDate?: string;
   id?: string;
   maxYesVotes?: number | null;
 };

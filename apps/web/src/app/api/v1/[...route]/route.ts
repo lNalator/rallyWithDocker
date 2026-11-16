@@ -84,12 +84,20 @@ type PollKind = "date" | "time";
 // date is the first ten characters of the ISO string.
 function toOptionResponse(
   kind: PollKind,
-  option: { id: string; startTime: Date; duration: number },
+  option: {
+    id: string;
+    startTime: Date;
+    duration: number;
+    endDate?: Date | null;
+  },
 ) {
   if (kind === "date") {
     return {
       id: option.id,
       date: option.startTime.toISOString().slice(0, 10),
+      ...(option.endDate
+        ? { endDate: option.endDate.toISOString().slice(0, 10) }
+        : {}),
     };
   }
   return {
@@ -122,7 +130,12 @@ function toPollResponseBody(poll: {
     email: string;
     image: string | null;
   } | null;
-  options: { id: string; startTime: Date; duration: number }[];
+  options: {
+    id: string;
+    startTime: Date;
+    duration: number;
+    endDate?: Date | null;
+  }[];
 }) {
   return {
     data: {
@@ -369,13 +382,13 @@ app.post(
       "",
       "## Date poll",
       "",
-      'Pass `kind: "date"` and `options`, one `{ "date": "YYYY-MM-DD" }` per day. Each becomes one all-day option. Dates are floating calendar days with no timezone, so never convert them through one. Duplicate dates are removed.',
+      'Pass `kind: "date"` and `options`, each with a `date` (`YYYY-MM-DD`) and an optional inclusive `endDate` for a multi-day option. Dates are floating calendar days with no timezone, so never convert them through one. Duplicate options are removed.',
       "",
       "```json",
       "{",
       '  "title": "Team offsite",',
       '  "kind": "date",',
-      '  "options": [{ "date": "2027-03-01" }, { "date": "2027-03-02" }, { "date": "2027-03-03" }]',
+      '        "options": [{ "date": "2027-03-01" }, { "date": "2027-03-02", "endDate": "2027-03-05" }]',
       "}",
       "```",
       "",
@@ -593,20 +606,28 @@ app.post(
     };
 
     if (input.kind === "date") {
-      const dates = [...new Set(input.options.map((option) => option.date))];
-      if (dates.length > MAX_POLL_OPTIONS) {
+      const optionsByRange = new Map(
+        input.options.map((option) => [
+          `${option.date}/${option.endDate ?? option.date}`,
+          option,
+        ]),
+      );
+      if (optionsByRange.size > MAX_POLL_OPTIONS) {
         return c.json(
           apiError(
             "TOO_MANY_OPTIONS",
-            `Too many options (${dates.length}). Maximum allowed is ${MAX_POLL_OPTIONS}.`,
+            `Too many options (${optionsByRange.size}). Maximum allowed is ${MAX_POLL_OPTIONS}.`,
           ),
           400,
         );
       }
 
-      const options = dates.map((date) => ({
-        startTime: new Date(`${date}T00:00:00.000Z`),
+      const options = [...optionsByRange.values()].map((option) => ({
+        startTime: new Date(`${option.date}T00:00:00.000Z`),
         duration: 0,
+        ...(option.endDate
+          ? { endDate: new Date(`${option.endDate}T00:00:00.000Z`) }
+          : {}),
       }));
 
       const poll = await createPoll({

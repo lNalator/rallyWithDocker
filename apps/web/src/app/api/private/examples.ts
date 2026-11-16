@@ -8,11 +8,11 @@ export const createPollRequestExamples = {
   datePoll: {
     summary: "Date poll (all-day options)",
     description:
-      "Use `dates` to let participants pick between calendar days. Each date becomes an all-day option.",
+      "Use `dates` to let participants pick between calendar days or inclusive date ranges. Each entry becomes an all-day option.",
     value: {
       title: "Team offsite",
       description: "Which days work for a two day offsite?",
-      dates: ["2026-08-03", "2026-08-04", "2026-08-05"],
+      dates: ["2026-08-03", { date: "2026-08-04", endDate: "2026-08-08" }],
     } satisfies CreatePollInput,
   },
   timePoll: {

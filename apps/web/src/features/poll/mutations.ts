@@ -17,6 +17,7 @@ import { scheduleWebhookDispatch } from "@/features/webhook/mutations";
 export type PollOption = {
   startTime: Date;
   duration: number;
+  endDate?: Date | null;
   maxYesVotes?: number | null;
 };
 
@@ -67,6 +68,7 @@ const pollResponseSelect = {
       id: true,
       startTime: true,
       duration: true,
+      endDate: true,
     },
     orderBy: {
       startTime: "asc",
@@ -362,8 +364,8 @@ const AUTO_CLOSE_POLLS_BUDGET_MS = 120_000;
  * duration 0, are treated as ending 24h after their start). Closing is
  * non-destructive: the poll becomes read-only but is preserved.
  *
- * Raw SQL because the option-end comparison (start_time + duration) can't be
- * expressed in a Prisma `where`. It also deliberately does not touch
+ * Raw SQL because the option-end comparison can't be expressed in a Prisma
+ * `where`. It also deliberately does not touch
  * `updated_at`, so closing a poll doesn't reset the inactivity clock that
  * delete-inactive-polls keys off. RETURNING feeds the activity writes, which
  * commit in the same transaction as the closes.
@@ -395,7 +397,10 @@ export async function autoClosePolls({
       SELECT 1 FROM options o
       WHERE o.poll_id = p.id
         AND o.start_time + (CASE WHEN o.duration_minutes = 0
-              THEN interval '24 hours'
+              THEN COALESCE(
+                (o.end_date + 1)::timestamp - o.start_time,
+                interval '24 hours'
+              )
               ELSE make_interval(mins => o.duration_minutes) END) > (now() AT TIME ZONE 'UTC')
     )
   `;

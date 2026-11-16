@@ -206,6 +206,31 @@ describe("toAvailabilitySpans", () => {
       },
     ]);
   });
+
+  it("spans every day in a multi-day date option", () => {
+    expect(
+      toAvailabilitySpans({
+        kind: "date",
+        votes: [
+          {
+            type: "yes",
+            option: {
+              startTime: at("2026-10-01T00:00:00Z"),
+              endDate: at("2026-10-04T00:00:00Z"),
+              duration: 0,
+            },
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        start: "2026-10-01T00:00:00.000Z",
+        end: "2026-10-05T00:00:00.000Z",
+        allDay: true,
+        modifiers: [],
+      },
+    ]);
+  });
 });
 
 describe("rankOptionsByPopularity", () => {

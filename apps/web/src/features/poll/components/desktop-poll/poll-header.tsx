@@ -77,15 +77,25 @@ const PollHeader = () => {
     dow: string;
     month: string;
     year: string;
+    endDay?: string;
+    endDow?: string;
+    endMonth?: string;
+    endYear?: string;
     count: number;
   }[] = [];
 
   for (const option of options) {
     const last = dayGroups[dayGroups.length - 1];
+    const endDay = option.type === "date" ? option.endDay : undefined;
+    const endMonth = option.type === "date" ? option.endMonth : undefined;
+    const endYear = option.type === "date" ? option.endYear : undefined;
     if (
       last?.day === option.day &&
       last?.month === option.month &&
-      last?.year === option.year
+      last?.year === option.year &&
+      last?.endDay === endDay &&
+      last?.endMonth === endMonth &&
+      last?.endYear === endYear
     ) {
       last.count++;
     } else {
@@ -94,6 +104,14 @@ const PollHeader = () => {
         dow: option.dow,
         month: option.month,
         year: option.year,
+        ...(option.type === "date" && endDay
+          ? {
+              endDay,
+              endDow: option.endDow,
+              endMonth,
+              endYear,
+            }
+          : {}),
         count: 1,
       });
     }
@@ -137,6 +155,14 @@ const PollHeader = () => {
               </div>
               <div data-testid="option-day" className="font-medium text-sm">
                 {group.day}
+                {group.endDay ? (
+                  <>
+                    {" – "}
+                    {group.endDay}
+                    {group.endMonth !== group.month ? ` ${group.endMonth}` : ""}
+                    {group.endYear !== group.year ? ` ${group.endYear}` : ""}
+                  </>
+                ) : null}
               </div>
             </div>
           </th>

@@ -108,7 +108,12 @@ function OptionChips({
   options,
   timeZone,
 }: {
-  options: { optionId: string; start: string; duration: number }[];
+  options: {
+    optionId: string;
+    start: string;
+    duration: number;
+    endDate?: string | null;
+  }[];
   timeZone: string | null;
 }) {
   return (
@@ -118,6 +123,7 @@ function OptionChips({
           key={option.optionId}
           start={option.start}
           duration={option.duration}
+          endDate={option.endDate}
           timeZone={timeZone}
         />
       ))}
@@ -128,10 +134,12 @@ function OptionChips({
 function OptionChip({
   start,
   duration,
+  endDate,
   timeZone,
 }: {
   start: string;
   duration: number;
+  endDate?: string | null;
   timeZone: string | null;
 }) {
   const allDay = duration === 0;
@@ -144,7 +152,17 @@ function OptionChip({
         timeZone={timeZone}
         preset="date"
       />
-      {allDay ? null : (
+      {endDate ? (
+        <>
+          {" – "}
+          <EventDate
+            value={new Date(`${endDate}T00:00:00.000Z`)}
+            allDay
+            timeZone={null}
+            preset="date"
+          />
+        </>
+      ) : allDay ? null : (
         <EventTimeRange
           start={startDate}
           end={new Date(startDate.getTime() + duration * 60_000)}
@@ -397,6 +415,7 @@ function ActivityDescription({
           <OptionChip
             start={event.payload.start}
             duration={event.payload.duration}
+            endDate={event.payload.endDate}
             timeZone={timeZone}
           />
         </>

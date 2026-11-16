@@ -7,11 +7,17 @@ export interface DateOptionProps extends PollOptionProps {
   dow: string;
   day: string;
   month: string;
+  endDow?: string;
+  endDay?: string;
+  endMonth?: string;
 }
 
 const DateOption: React.FunctionComponent<DateOptionProps> = ({
   dow,
   day,
+  endDow,
+  endDay,
+  endMonth,
   ...rest
 }) => {
   return (
@@ -22,6 +28,12 @@ const DateOption: React.FunctionComponent<DateOptionProps> = ({
        */}
       <div className="text-sm">
         {day} {dow}
+        {endDay && endDow ? (
+          <>
+            {" – "}
+            {endDay} {endDow}
+          </>
+        ) : null}
       </div>
     </PollOption>
   );
