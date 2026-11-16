@@ -23,7 +23,12 @@ export type PollDetails = {
   timeZone: string | null;
   userId: string | null;
   spaceId: string | null;
-  options: { id: string; startTime: Date; duration: number }[];
+  options: {
+    id: string;
+    startTime: Date;
+    duration: number;
+    maxYesVotes?: number | null;
+  }[];
   user: { id: string; name: string; image: string | null } | null;
   space: {
     name: string;

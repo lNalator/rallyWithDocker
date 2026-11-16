@@ -749,7 +749,12 @@ export async function getPollDetails({
       spaceId: true,
       deleted: true,
       options: {
-        select: { id: true, startTime: true, duration: true },
+        select: {
+          id: true,
+          startTime: true,
+          duration: true,
+          maxYesVotes: true,
+        },
         orderBy: { startTime: "asc" },
       },
       user: { select: { id: true, name: true, image: true, banned: true } },

@@ -34,6 +34,8 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
       {options.map((option) => {
         const score = getScore(option.optionId);
         const index = optionIds.indexOf(option.optionId);
+        const isFull =
+          option.maxYesVotes !== null && score.yes >= option.maxYesVotes;
         return (
           <div key={option.optionId} className="p-2">
             <Controller
@@ -45,6 +47,11 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
                   !editable && selectedParticipant
                     ? getVote(selectedParticipant.id, option.optionId)
                     : field.value[index]?.type;
+                const hasExistingYesVote = selectedParticipant?.votes.some(
+                  (existingVote) =>
+                    existingVote.optionId === option.optionId &&
+                    existingVote.type === "yes",
+                );
 
                 const handleChange = (newVote: VoteType) => {
                   if (!editable) {
@@ -67,6 +74,9 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
                         optionId={option.optionId}
                         optionLabel={getOptionDateTimeLabel(option)}
                         yesScore={score.yes}
+                        yesVoteLimit={option.maxYesVotes}
+                        isFull={isFull}
+                        hasExistingYesVote={hasExistingYesVote}
                         ifNeedBeScore={score.ifNeedBe}
                         vote={vote}
                         startTime={option.startTime}
@@ -84,6 +94,9 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
                         optionId={option.optionId}
                         optionLabel={getOptionDateTimeLabel(option)}
                         yesScore={score.yes}
+                        yesVoteLimit={option.maxYesVotes}
+                        isFull={isFull}
+                        hasExistingYesVote={hasExistingYesVote}
                         ifNeedBeScore={score.ifNeedBe}
                         vote={vote}
                         dow={option.dow}

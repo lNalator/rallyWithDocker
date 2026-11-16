@@ -10,6 +10,7 @@ import {
   useDialog,
 } from "@rallly/ui/dialog";
 import { FormField, FormMessage } from "@rallly/ui/form";
+import { Input } from "@rallly/ui/input";
 import { Label } from "@rallly/ui/label";
 import { Switch } from "@rallly/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@rallly/ui/tabs";
@@ -21,6 +22,7 @@ import { TimeZoneSelect } from "@/components/time-zone-picker/time-zone-select";
 import { useUser } from "@/features/user/client";
 import { Trans, useTranslation } from "@/i18n/client";
 
+import { useDateTime } from "@/lib/datetime/client";
 import { getBrowserTimeZone } from "@/lib/utils/date-time-utils";
 import type { NewEventData } from "../types";
 import MonthCalendar from "./month-calendar/month-calendar";
@@ -34,6 +36,7 @@ const PollOptionsForm = ({
 }: React.PropsWithChildren<{ disableTimeZoneChange?: boolean }>) => {
   const { t } = useTranslation();
   const form = useFormContext<NewEventData>();
+  const { formatDateTime, formatDateTimeRange } = useDateTime();
 
   const { watch, setValue, formState } = form;
   const { user } = useUser();
@@ -193,6 +196,20 @@ const PollOptionsForm = ({
                     "A poll can't have both date and time options. Remove one kind to continue.",
                 });
               }
+              if (
+                options.some(
+                  (option) =>
+                    option.maxYesVotes != null &&
+                    (!Number.isSafeInteger(option.maxYesVotes) ||
+                      option.maxYesVotes < 1 ||
+                      option.maxYesVotes > 2_147_483_647),
+                )
+              ) {
+                return t("voteLimitInvalid", {
+                  defaultValue:
+                    "Each vote limit must be a positive whole number. Clear a limit to allow unlimited votes.",
+                });
+              }
               return true;
             },
           }}
@@ -231,6 +248,87 @@ const PollOptionsForm = ({
           )}
         />
       </div>
+      {watchOptions.length > 0 ? (
+        <div className="space-y-3 border-t p-3">
+          <div>
+            <h3 className="font-medium text-sm">
+              <Trans
+                i18nKey="optionVoteLimitsTitle"
+                defaults="Participant limits"
+              />
+            </h3>
+            <p className="text-muted-foreground text-sm">
+              <Trans
+                i18nKey="optionVoteLimitsDescription"
+                defaults="Set a maximum number of Yes votes for each option. Leave blank for no limit."
+              />
+            </p>
+          </div>
+          <div className="space-y-2">
+            {watchOptions.map((option, index) => {
+              const label =
+                option.type === "date"
+                  ? formatDateTime(
+                      new Date(`${option.date}T12:00:00Z`),
+                      "dateFull",
+                      { timeZone: "UTC" },
+                    )
+                  : formatDateTimeRange(
+                      new Date(`${option.start}Z`),
+                      new Date(`${option.end}Z`),
+                      "datetime",
+                      { timeZone: "UTC" },
+                    );
+
+              return (
+                <div
+                  key={`${option.type}-${option.type === "date" ? option.date : option.start}-${index}`}
+                  className="flex items-center justify-between gap-4"
+                >
+                  <label
+                    className="min-w-0 text-sm"
+                    htmlFor={`option-vote-limit-${index}`}
+                  >
+                    {label}
+                  </label>
+                  <Input
+                    id={`option-vote-limit-${index}`}
+                    type="number"
+                    min={1}
+                    max={2_147_483_647}
+                    step={1}
+                    className="w-24 shrink-0"
+                    aria-label={t("optionVoteLimitLabel", {
+                      defaultValue: "Maximum yes votes for {option}",
+                      option: label,
+                    })}
+                    value={option.maxYesVotes ?? ""}
+                    onChange={(event) => {
+                      const rawValue = event.target.value;
+                      const maxYesVotes =
+                        rawValue === "" ? null : Number(rawValue);
+                      form.setValue(
+                        "options",
+                        watchOptions.map((current, currentIndex) =>
+                          currentIndex === index
+                            ? { ...current, maxYesVotes }
+                            : current,
+                        ),
+                        { shouldDirty: true, shouldValidate: true },
+                      );
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {formState.errors.options ? (
+            <div className="text-destructive text-sm" role="alert">
+              {formState.errors.options.message}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <FormField
         control={form.control}
         name="lockTimeZone"

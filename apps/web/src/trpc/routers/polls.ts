@@ -203,6 +203,13 @@ export const polls = router({
           .object({
             startDate: z.string(),
             endDate: z.string().optional(),
+            maxYesVotes: z
+              .number()
+              .int()
+              .min(1)
+              .max(2_147_483_647)
+              .nullable()
+              .optional(),
           })
           .array()
           .min(1),
@@ -297,6 +304,7 @@ export const polls = router({
         duration: option.endDate
           ? wallTimeDiffInMinutes(option.startDate, option.endDate)
           : 0,
+        maxYesVotes: option.maxYesVotes ?? null,
       }));
 
       const kind = isTimePoll ? "time" : "date";
@@ -458,7 +466,27 @@ export const polls = router({
           .transform(collapseNewlines)
           .optional(),
         optionsToDelete: z.string().array().optional(),
-        optionsToAdd: z.string().array().optional(),
+        optionsToAdd: z
+          .object({
+            startDate: z.string(),
+            endDate: z.string().optional(),
+            maxYesVotes: z
+              .number()
+              .int()
+              .min(1)
+              .max(2_147_483_647)
+              .nullable()
+              .optional(),
+          })
+          .array()
+          .optional(),
+        optionVoteLimits: z
+          .object({
+            id: z.string(),
+            maxYesVotes: z.number().int().min(1).max(2_147_483_647).nullable(),
+          })
+          .array()
+          .optional(),
         hideParticipants: z.boolean().optional(),
         disableComments: z.boolean().optional(),
         allowTentativeVotes: z.boolean().optional(),
@@ -557,19 +585,25 @@ export const polls = router({
 
       await prisma.$transaction(async (tx) => {
         const newOptions =
-          input.optionsToAdd?.map((optionValue) => {
-            const [start, end] = optionValue.split("/");
-
-            if (end) {
+          input.optionsToAdd?.map((option) => {
+            if (option.endDate) {
               return {
-                startTime: wallTimeToInstant(start, input.timeZone ?? "UTC"),
-                duration: wallTimeDiffInMinutes(start, end),
+                startTime: wallTimeToInstant(
+                  option.startDate,
+                  input.timeZone ?? "UTC",
+                ),
+                duration: wallTimeDiffInMinutes(
+                  option.startDate,
+                  option.endDate,
+                ),
+                maxYesVotes: option.maxYesVotes ?? null,
                 pollId,
               };
             } else {
               return {
-                startTime: wallTimeToInstant(start, "UTC"),
+                startTime: wallTimeToInstant(option.startDate, "UTC"),
                 duration: 0,
+                maxYesVotes: option.maxYesVotes ?? null,
                 pollId,
               };
             }
@@ -680,6 +714,17 @@ export const polls = router({
               },
             },
           });
+        }
+
+        if (input.optionVoteLimits?.length) {
+          await Promise.all(
+            input.optionVoteLimits.map(({ id, maxYesVotes }) =>
+              tx.option.updateMany({
+                where: { id, pollId },
+                data: { maxYesVotes },
+              }),
+            ),
+          );
         }
 
         const addedOptions =
@@ -888,7 +933,8 @@ export const polls = router({
         input.description !== undefined;
       const hasOptionsUpdate =
         (input.optionsToDelete && input.optionsToDelete.length > 0) ||
-        (input.optionsToAdd && input.optionsToAdd.length > 0);
+        (input.optionsToAdd && input.optionsToAdd.length > 0) ||
+        (input.optionVoteLimits && input.optionVoteLimits.length > 0);
       const hasSettingsUpdate =
         input.timeZone !== undefined ||
         input.hideParticipants !== undefined ||
