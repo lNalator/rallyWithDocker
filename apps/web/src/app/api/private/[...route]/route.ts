@@ -80,7 +80,12 @@ function toPollResponseBody(poll: {
   status: string;
   createdAt: Date;
   user: { name: string; image: string | null } | null;
-  options: { id: string; startTime: Date; duration: number }[];
+  options: {
+    id: string;
+    startTime: Date;
+    duration: number;
+    endDate?: Date | null;
+  }[];
 }) {
   return {
     data: {
@@ -101,6 +106,9 @@ function toPollResponseBody(poll: {
         id: option.id,
         startTime: option.startTime.toISOString(),
         duration: option.duration,
+        ...(option.endDate
+          ? { endDate: option.endDate.toISOString().slice(0, 10) }
+          : {}),
       })),
       adminUrl: absoluteUrl(`/poll/${poll.id}`),
       inviteUrl: shortUrl(`/invite/${poll.id}`),
@@ -237,7 +245,7 @@ app.post(
     description: [
       "Creates a new poll. Provide the poll options in one of two ways:",
       "",
-      "- `dates` — a list of calendar dates. Each date becomes an all-day option (date poll).",
+      "- `dates` — a list of calendar dates or `{ date, endDate }` ranges. Range end dates are inclusive, and each entry becomes an all-day option (date poll).",
       "- `slots` — time-based options that share a fixed `duration` in minutes. Each entry in `slots.times` is either an ISO datetime for an explicit slot, or a slot generator that expands into recurring slots within a time window across a date range. Generated slots start every `interval` minutes (defaults to `duration`) and must fit entirely between `startTime` and `endTime`.",
       "",
       "`dates` and `slots` are mutually exclusive, and a poll can have at most 100 options. See the request examples for common scenarios.",
@@ -384,9 +392,14 @@ app.post(
         );
       }
 
-      const uniqueDates = [...new Set(input.dates)];
-      if (uniqueDates.length < input.dates.length) {
-        const duplicateCount = input.dates.length - uniqueDates.length;
+      const optionsByRange = new Map(
+        input.dates.map((item) => {
+          const option = typeof item === "string" ? { date: item } : item;
+          return [`${option.date}/${option.endDate ?? option.date}`, option];
+        }),
+      );
+      if (optionsByRange.size < input.dates.length) {
+        const duplicateCount = input.dates.length - optionsByRange.size;
         return c.json(
           apiError(
             "DUPLICATE_DATES",
@@ -396,9 +409,12 @@ app.post(
         );
       }
 
-      const options = uniqueDates.map((date) => ({
-        startTime: new Date(`${date}T00:00:00.000Z`),
+      const options = [...optionsByRange.values()].map((option) => ({
+        startTime: new Date(`${option.date}T00:00:00.000Z`),
         duration: 0,
+        ...(option.endDate
+          ? { endDate: new Date(`${option.endDate}T00:00:00.000Z`) }
+          : {}),
       }));
 
       const poll = await createPoll({
@@ -772,6 +788,7 @@ app.get(
           options: data.options.map((option) => ({
             ...option,
             startTime: option.startTime.toISOString(),
+            endDate: option.endDate?.toISOString().slice(0, 10) ?? null,
             // The frozen shape omits types that received no votes.
             votes: option.votes.filter((vote) => vote.count > 0),
           })),

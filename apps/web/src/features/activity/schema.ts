@@ -25,12 +25,14 @@ const actor = {
 const optionSnapshotSchema = z.object({
   start: z.iso.datetime(),
   duration: z.number().int().nonnegative(),
+  endDate: z.iso.date().nullable().optional(),
 });
 
 const voteSnapshotSchema = z.object({
   optionId: z.string(),
   start: z.iso.datetime(),
   duration: z.number().int().nonnegative(),
+  endDate: z.iso.date().nullable().optional(),
   type: z.enum(["yes", "no", "ifNeedBe"]),
 });
 

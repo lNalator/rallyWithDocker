@@ -22,6 +22,7 @@ type OptionRow = {
   id: string;
   startTime: Date;
   duration: number;
+  endDate?: Date | null;
 };
 
 /**
@@ -76,6 +77,16 @@ export function PollOptionsList<TRow extends OptionRow>({
                 preset="dateLong"
                 className="truncate text-muted-foreground"
               />
+              {row.original.endDate ? (
+                <>
+                  <span aria-hidden>–</span>
+                  <CalendarDate
+                    value={row.original.endDate}
+                    preset="dateLong"
+                    className="truncate text-muted-foreground"
+                  />
+                </>
+              ) : null}
             </span>
           ) : (
             <EventTimeRange

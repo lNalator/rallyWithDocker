@@ -403,7 +403,9 @@ export async function deleteParticipant({
             select: {
               optionId: true,
               type: true,
-              option: { select: { startTime: true, duration: true } },
+              option: {
+                select: { startTime: true, duration: true, endDate: true },
+              },
             },
           },
         },
@@ -431,6 +433,7 @@ export async function deleteParticipant({
               optionId: vote.optionId,
               start: vote.option.startTime.toISOString(),
               duration: vote.option.duration,
+              endDate: vote.option.endDate?.toISOString().slice(0, 10) ?? null,
               type: vote.type,
             })),
           },

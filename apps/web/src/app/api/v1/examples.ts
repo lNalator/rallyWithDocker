@@ -7,15 +7,14 @@ export const createPollRequestExamples = {
   "Date poll": {
     summary: "Date poll (all-day options)",
     description:
-      "Let participants pick between calendar days. Each option is one all-day date.",
+      "Let participants pick between calendar days or inclusive date ranges. Each option is one all-day choice.",
     value: {
       title: "Team offsite",
       kind: "date",
       description: "Which days work for a two day offsite?",
       options: [
         { date: "2027-03-01" },
-        { date: "2027-03-02" },
-        { date: "2027-03-03" },
+        { date: "2027-03-02", endDate: "2027-03-05" },
       ],
     } satisfies CreatePollInput,
   },

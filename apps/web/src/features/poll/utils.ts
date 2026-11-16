@@ -121,7 +121,11 @@ export function toAvailabilitySpans({
   kind: "date" | "time";
   votes: {
     type: VoteType;
-    option: { startTime: Date; duration: number };
+    option: {
+      startTime: Date;
+      duration: number;
+      endDate?: Date | null;
+    };
   }[];
 }): AvailabilitySpan[] {
   const allDay = kind === "date";
@@ -131,8 +135,10 @@ export function toAvailabilitySpans({
     .map(({ type, option }) => ({
       start: option.startTime.toISOString(),
       end: new Date(
-        option.startTime.getTime() +
-          (allDay ? DAY_MS : option.duration * MINUTE_MS),
+        allDay && option.endDate
+          ? option.endDate.getTime() + DAY_MS
+          : option.startTime.getTime() +
+              (allDay ? DAY_MS : option.duration * MINUTE_MS),
       ).toISOString(),
       allDay,
       modifiers: type === "ifNeedBe" ? ["ifNeedBe"] : [],

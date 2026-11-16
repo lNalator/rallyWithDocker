@@ -20,7 +20,9 @@ export function getBrowserTimeZone() {
 export const encodeDateOption = (option: DateTimeOption) => {
   return option.type === "timeSlot"
     ? `${option.start}/${option.end}`
-    : option.date;
+    : option.endDate
+      ? `${option.date}~${option.endDate}`
+      : option.date;
 };
 
 export interface ParsedDateOption {
@@ -30,6 +32,10 @@ export interface ParsedDateOption {
   dow: string;
   month: string;
   year: string;
+  endDay?: string;
+  endDow?: string;
+  endMonth?: string;
+  endYear?: string;
 }
 
 export interface ParsedTimeSlotOption {
@@ -50,7 +56,9 @@ export const getOptionDateTimeLabel = (option: ParsedDateTimeOpton) => {
   const date = `${option.dow} ${option.day} ${option.month} ${option.year}`;
   return option.type === "timeSlot"
     ? `${date}, ${option.startTime} – ${option.endTime}`
-    : date;
+    : option.endDay && option.endDow && option.endMonth && option.endYear
+      ? `${date} – ${option.endDow} ${option.endDay} ${option.endMonth} ${option.endYear}`
+      : date;
 };
 
 export const expectTimeOption = (d: DateTimeOption): TimeOption => {

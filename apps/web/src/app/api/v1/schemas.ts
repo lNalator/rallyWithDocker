@@ -136,6 +136,15 @@ const dateOptionInputSchema = z
       description: "Calendar day to offer, as a floating `YYYY-MM-DD` date.",
       example: "2027-03-01",
     }),
+    endDate: dateSchema.optional().meta({
+      description:
+        "Inclusive final day of a multi-day option. Omit for a single-day option.",
+      example: "2027-03-05",
+    }),
+  })
+  .refine((option) => !option.endDate || option.endDate >= option.date, {
+    message: "endDate must be on or after date",
+    path: ["endDate"],
   })
   .meta({
     id: "DateOptionInput",
@@ -246,7 +255,7 @@ const createDatePollInputSchema = z
     organizer: pollSettingsFields.organizer,
     options: z.array(dateOptionInputSchema).min(1).meta({
       description:
-        "Calendar days to offer. Dates are floating calendar days with no timezone, so never convert them through one. Duplicates are removed.",
+        "Calendar days or inclusive date ranges to offer. Dates are floating calendar days with no timezone, so never convert them through one. Duplicates are removed.",
     }),
   })
   .meta({ id: "CreateDatePollInput", title: "Date poll" });
@@ -394,10 +403,16 @@ export const dateOptionSchema = z
         "Calendar date in YYYY-MM-DD format. All-day options are floating dates with no time component and no timezone.",
       example: "2025-01-15",
     }),
+    endDate: z.iso.date().optional().meta({
+      description:
+        "Inclusive final day of a multi-day option. Omitted for a single day.",
+      example: "2025-01-19",
+    }),
   })
   .meta({
     id: "DateOption",
-    description: "An all-day option. Only present in polls with `kind: date`.",
+    description:
+      "An all-day option. Only present in polls with `kind: date`; `endDate` is the inclusive final day when the option spans multiple days.",
   });
 
 export const timeOptionSchema = z

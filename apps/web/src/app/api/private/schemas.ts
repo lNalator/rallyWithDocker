@@ -70,12 +70,31 @@ const slotsInputSchema = z
   })
   .meta({ id: "SlotsInput" });
 
+const dateOptionInputSchema = z
+  .union([
+    z.iso.date(),
+    z
+      .object({
+        date: dateSchema,
+        endDate: dateSchema.optional(),
+      })
+      .refine((option) => !option.endDate || option.endDate >= option.date, {
+        message: "endDate must be on or after date",
+        path: ["endDate"],
+      }),
+  ])
+  .meta({
+    description:
+      "An ISO date for one day, or an object with `date` and an inclusive `endDate`.",
+    example: { date: "2025-01-15", endDate: "2025-01-19" },
+  });
+
 const datesInputSchema = z
-  .array(z.iso.date())
+  .array(dateOptionInputSchema)
   .min(1)
   .meta({
-    description: "Array of ISO dates for all-day options",
-    example: ["2025-01-15", "2025-01-16", "2025-01-17"],
+    description: "Array of single-day or multi-day all-day options",
+    example: ["2025-01-15", { date: "2025-01-16", endDate: "2025-01-19" }],
   });
 
 export const createPollInputSchema = z
@@ -170,6 +189,11 @@ export const pollOptionSchema = z
     duration: z.number().int().meta({
       description: "Duration in minutes. 0 indicates an all-day option.",
       example: 30,
+    }),
+    endDate: dateSchema.nullable().optional().meta({
+      description:
+        "Inclusive final day for a multi-day all-day option. Omitted on older responses.",
+      example: "2025-01-19",
     }),
   })
   .meta({ id: "PollOption" });
@@ -287,6 +311,11 @@ export const optionResultSchema = z
     duration: z.int().nonnegative().meta({
       description: "Duration in minutes. 0 indicates an all-day option.",
       example: 30,
+    }),
+    endDate: dateSchema.nullable().optional().meta({
+      description:
+        "Inclusive final day for a multi-day all-day option. Omitted on older responses.",
+      example: "2025-01-19",
     }),
     votes: z.array(voteCountSchema).meta({
       description: "Array of vote counts by type",

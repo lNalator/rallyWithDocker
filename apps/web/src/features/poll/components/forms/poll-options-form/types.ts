@@ -1,6 +1,7 @@
 export type DateOption = {
   type: "date";
   date: string;
+  endDate?: string;
 };
 
 export type TimeOption = {

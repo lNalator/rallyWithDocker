@@ -59,6 +59,7 @@ type RankedOption = {
   id: string;
   startTime: Date;
   duration: number;
+  endDate?: Date | null;
   votes: OptionVotes;
 };
 
@@ -84,6 +85,17 @@ function OptionCell({
         timeZone={poll.timeZone}
         preset="dateFull"
       />
+      {option.endDate ? (
+        <>
+          {" – "}
+          <EventDate
+            value={option.endDate}
+            allDay
+            timeZone={null}
+            preset="dateFull"
+          />
+        </>
+      ) : null}
     </button>
   );
 }
@@ -225,28 +237,41 @@ function PickedDate({ option }: { option: RankedOption }) {
             timeZone={poll.timeZone}
             preset="dateFull"
           />
-        </div>
-        <div className="truncate text-muted-foreground text-sm">
-          <EventTimeRange
-            start={option.startTime}
-            end={
-              new Date(option.startTime.getTime() + option.duration * 60_000)
-            }
-            allDay={allDay}
-            timeZone={poll.timeZone}
-          />
-          {cityTimeZone ? (
+          {option.endDate ? (
             <>
-              {" ("}
-              <Trans
-                i18nKey="cityTime"
-                defaults="{city} time"
-                values={{ city: getCityFromTimezoneId(cityTimeZone) }}
+              {" – "}
+              <EventDate
+                value={option.endDate}
+                allDay
+                timeZone={null}
+                preset="dateFull"
               />
-              {")"}
             </>
           ) : null}
         </div>
+        {!option.endDate ? (
+          <div className="truncate text-muted-foreground text-sm">
+            <EventTimeRange
+              start={option.startTime}
+              end={
+                new Date(option.startTime.getTime() + option.duration * 60_000)
+              }
+              allDay={allDay}
+              timeZone={poll.timeZone}
+            />
+            {cityTimeZone ? (
+              <>
+                {" ("}
+                <Trans
+                  i18nKey="cityTime"
+                  defaults="{city} time"
+                  values={{ city: getCityFromTimezoneId(cityTimeZone) }}
+                />
+                {")"}
+              </>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -477,7 +502,17 @@ function PickedDateText({ option }: { option: RankedOption }) {
         timeZone={poll.timeZone}
         preset="dateFull"
       />
-      {allDay ? null : (
+      {option.endDate ? (
+        <>
+          {" – "}
+          <EventDate
+            value={option.endDate}
+            allDay
+            timeZone={null}
+            preset="dateFull"
+          />
+        </>
+      ) : allDay ? null : (
         <>
           {", "}
           <EventTimeRange

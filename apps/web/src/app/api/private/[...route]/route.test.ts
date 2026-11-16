@@ -484,7 +484,11 @@ describe("Private API - /polls", () => {
         },
         body: JSON.stringify({
           title: "Team offsite",
-          dates: ["2025-01-15", "2025-01-16", "2025-01-17"],
+          dates: [
+            "2025-01-15",
+            { date: "2025-01-16", endDate: "2025-01-19" },
+            "2025-01-20",
+          ],
         }),
       });
 
@@ -508,9 +512,10 @@ describe("Private API - /polls", () => {
             {
               startTime: new Date("2025-01-16T00:00:00.000Z"),
               duration: 0,
+              endDate: new Date("2025-01-19T00:00:00.000Z"),
             },
             {
-              startTime: new Date("2025-01-17T00:00:00.000Z"),
+              startTime: new Date("2025-01-20T00:00:00.000Z"),
               duration: 0,
             },
           ],

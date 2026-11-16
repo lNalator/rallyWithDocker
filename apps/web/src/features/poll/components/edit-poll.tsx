@@ -48,12 +48,14 @@ const toPollWallTime = (value: Date, timeZone: string | null) =>
   instantToWallTime(value, timeZone ?? "UTC");
 
 const encodeStoredOption = (
-  option: { startTime: Date; duration: number },
+  option: { startTime: Date; duration: number; endDate: Date | null },
   timeZone: string | null,
 ) => {
   const start = toPollWallTime(option.startTime, timeZone);
   return option.duration === 0
-    ? start.slice(0, 10)
+    ? option.endDate
+      ? `${start.slice(0, 10)}~${option.endDate.toISOString().slice(0, 10)}`
+      : start.slice(0, 10)
     : `${start}/${addMinutesToWallTime(start, option.duration)}`;
 };
 
@@ -78,7 +80,13 @@ function getDefaultValues(poll: PollDetails): NewEventData {
             start,
             end: addMinutesToWallTime(start, option.duration),
           }
-        : { type: "date" as const, date: start.slice(0, 10) };
+        : {
+            type: "date" as const,
+            date: start.slice(0, 10),
+            ...(option.endDate
+              ? { endDate: option.endDate.toISOString().slice(0, 10) }
+              : {}),
+          };
     }),
     timeZone: poll.timeZone ?? "",
     // A timed poll with no stored zone was locked to a single wall-clock time.
@@ -114,7 +122,10 @@ function getDateChanges({
       ? data.timeZone || fallbackTimeZone
       : null;
 
-  const encodedOptions = data.options.map(encodeDateOption);
+  const encodedOptions = data.options.map((option) => ({
+    key: encodeDateOption(option),
+    option,
+  }));
 
   // When the frame changes the stored instants no longer match it, so every
   // option is re-stored from the form's wall-clock under the new frame, which
@@ -126,17 +137,21 @@ function getDateChanges({
     ? poll.options
     : poll.options.filter(
         (option) =>
-          !encodedOptions.includes(encodeStoredOption(option, poll.timeZone)),
+          !encodedOptions.some(
+            ({ key }) => key === encodeStoredOption(option, poll.timeZone),
+          ),
       );
 
   const optionsToAdd = frameChanged
-    ? encodedOptions
-    : encodedOptions.filter(
-        (encoded) =>
-          !poll.options.some(
-            (option) => encodeStoredOption(option, poll.timeZone) === encoded,
-          ),
-      );
+    ? encodedOptions.map(({ option }) => option)
+    : encodedOptions
+        .filter(
+          ({ key }) =>
+            !poll.options.some(
+              (option) => encodeStoredOption(option, poll.timeZone) === key,
+            ),
+        )
+        .map(({ option }) => option);
 
   if (
     !frameChanged &&

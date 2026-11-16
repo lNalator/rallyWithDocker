@@ -8,6 +8,7 @@ export type VoteResult = {
   optionId: string;
   startTime: Date;
   duration: number;
+  endDate: Date | null;
   score: { yes: number; ifNeedBe: number } | null;
 };
 
