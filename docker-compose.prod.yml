@@ -1,16 +1,17 @@
-# Déployé par .github/workflows/deploy.yml (copié en ~/apps/rallly/compose.yaml sur la VM).
-# Secrets dans ~/apps/rallly/.env : voir .env.prod.example.
-# Pas de reverse proxy pour l'instant : Rallly est publié sur APP_PORT (3200 par défaut).
-name: rallly # fixe le nom du projet : sinon il dépendrait du dossier (app/)
+# Stack Rallly déployée par Portainer (Repository ou Web editor).
+# Les variables viennent de l'onglet "Environment variables" de Portainer.
+# Rallly n'est pas publié : le reverse proxy (Caddy) le joint via le réseau "proxy".
+name: rallly # fixe le nom du projet : sinon il dépendrait du dossier
 
 services:
   rallly_db:
     image: postgres:18-alpine
     restart: unless-stopped
+    networks: [internal]
     volumes:
       - db-data:/var/lib/postgresql
     environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       - POSTGRES_DB=rallly
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -19,17 +20,27 @@ services:
       retries: 5
 
   rallly:
-    image: ${RALLLY_IMAGE:-ghcr.io/lnalator/rallywithdocker:staging}
+    image: ghcr.io/lnalator/rallywithdocker:main
     restart: unless-stopped
-    ports:
-      - "${APP_PORT:-3200}:3000"
+    networks: [internal, proxy]
     depends_on:
       rallly_db:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@rallly_db/rallly
-    env_file:
-      - .env
+      - SECRET_PASSWORD=${SECRET_PASSWORD:?set SECRET_PASSWORD}
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:?set NEXT_PUBLIC_BASE_URL}
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-support@example.com}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PWD=${SMTP_PWD:-}
+
+networks:
+  internal:
+  proxy:
+    external: true
 
 volumes:
   db-data:
