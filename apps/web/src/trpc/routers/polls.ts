@@ -212,6 +212,13 @@ export const polls = router({
             startDate: z.string(),
             endDate: z.string().optional(),
             rangeEndDate: z.iso.date().optional(),
+            maxYesVotes: z
+              .number()
+              .int()
+              .min(1)
+              .max(2_147_483_647)
+              .nullable()
+              .optional(),
           })
           .refine(
             (option) =>
@@ -317,6 +324,7 @@ export const polls = router({
         endDate: option.rangeEndDate
           ? wallTimeToInstant(option.rangeEndDate, "UTC")
           : null,
+        maxYesVotes: option.maxYesVotes ?? null,
       }));
 
       const kind = isTimePoll ? "time" : "date";
@@ -479,23 +487,33 @@ export const polls = router({
           .optional(),
         optionsToDelete: z.string().array().optional(),
         optionsToAdd: z
-          .discriminatedUnion("type", [
-            z
-              .object({
-                type: z.literal("date"),
-                date: z.iso.date(),
-                endDate: z.iso.date().optional(),
-              })
-              .refine(
-                (option) => !option.endDate || option.endDate >= option.date,
-                "The range end must be on or after the start date",
-              ),
-            z.object({
-              type: z.literal("timeSlot"),
-              start: z.string(),
-              end: z.string(),
-            }),
-          ])
+          .object({
+            startDate: z.string(),
+            endDate: z.string().optional(),
+            rangeEndDate: z.iso.date().optional(),
+            maxYesVotes: z
+              .number()
+              .int()
+              .min(1)
+              .max(2_147_483_647)
+              .nullable()
+              .optional(),
+          })
+          .refine(
+            (option) =>
+              !option.rangeEndDate ||
+              (!option.endDate &&
+                option.startDate.length === 10 &&
+                option.rangeEndDate >= option.startDate),
+            "The range end must be on or after the start date",
+          )
+          .array()
+          .optional(),
+        optionVoteLimits: z
+          .object({
+            id: z.string(),
+            maxYesVotes: z.number().int().min(1).max(2_147_483_647).nullable(),
+          })
           .array()
           .optional(),
         hideParticipants: z.boolean().optional(),
@@ -596,26 +614,20 @@ export const polls = router({
 
       await prisma.$transaction(async (tx) => {
         const newOptions =
-          input.optionsToAdd?.map((option) =>
-            option.type === "timeSlot"
-              ? {
-                  startTime: wallTimeToInstant(
-                    option.start,
-                    input.timeZone ?? "UTC",
-                  ),
-                  duration: wallTimeDiffInMinutes(option.start, option.end),
-                  endDate: null,
-                  pollId,
-                }
-              : {
-                  startTime: wallTimeToInstant(option.date, "UTC"),
-                  duration: 0,
-                  endDate: option.endDate
-                    ? wallTimeToInstant(option.endDate, "UTC")
-                    : null,
-                  pollId,
-                },
-          ) ?? [];
+          input.optionsToAdd?.map((option) => ({
+            startTime: wallTimeToInstant(
+              option.startDate,
+              option.endDate ? (input.timeZone ?? "UTC") : "UTC",
+            ),
+            duration: option.endDate
+              ? wallTimeDiffInMinutes(option.startDate, option.endDate)
+              : 0,
+            endDate: option.rangeEndDate
+              ? wallTimeToInstant(option.rangeEndDate, "UTC")
+              : null,
+            maxYesVotes: option.maxYesVotes ?? null,
+            pollId,
+          })) ?? [];
 
         // Lock the poll row for the rest of the transaction. Concurrent edits
         // then queue, so each reads the values the previous one committed and
@@ -727,6 +739,17 @@ export const polls = router({
               },
             },
           });
+        }
+
+        if (input.optionVoteLimits?.length) {
+          await Promise.all(
+            input.optionVoteLimits.map(({ id, maxYesVotes }) =>
+              tx.option.updateMany({
+                where: { id, pollId },
+                data: { maxYesVotes },
+              }),
+            ),
+          );
         }
 
         const addedOptions =
@@ -940,7 +963,8 @@ export const polls = router({
         input.description !== undefined;
       const hasOptionsUpdate =
         (input.optionsToDelete && input.optionsToDelete.length > 0) ||
-        (input.optionsToAdd && input.optionsToAdd.length > 0);
+        (input.optionsToAdd && input.optionsToAdd.length > 0) ||
+        (input.optionVoteLimits && input.optionVoteLimits.length > 0);
       const hasSettingsUpdate =
         input.timeZone !== undefined ||
         input.hideParticipants !== undefined ||

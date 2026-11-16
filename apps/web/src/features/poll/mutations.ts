@@ -18,6 +18,7 @@ export type PollOption = {
   startTime: Date;
   duration: number;
   endDate?: Date | null;
+  maxYesVotes?: number | null;
 };
 
 export type CreatePollParams = {

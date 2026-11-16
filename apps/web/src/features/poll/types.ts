@@ -28,6 +28,7 @@ export type PollDetails = {
     startTime: Date;
     duration: number;
     endDate: Date | null;
+    maxYesVotes: number | null;
   }[];
   user: { id: string; name: string; image: string | null } | null;
   space: {

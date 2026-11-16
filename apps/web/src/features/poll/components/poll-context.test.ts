@@ -67,6 +67,16 @@ describe("createOptionsContextValue — all-day options are timezone-invariant",
       endMonth: "Jul",
     });
   });
+
+  it("carries the yes-vote limit into the rendered option", () => {
+    const result = createOptionsContextValue({
+      pollOptions: [{ ...allDayOption, maxYesVotes: 20 }],
+      pollTimeZone: null,
+      locale: "en",
+    });
+    expect(result.options[0]).toMatchObject({ maxYesVotes: 20 });
+    expect(result.options[0]).toMatchObject({ maxYesVotes: 20 });
+  });
 });
 
 describe("createOptionsContextValue — time slots", () => {

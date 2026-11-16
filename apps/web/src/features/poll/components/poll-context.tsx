@@ -129,6 +129,7 @@ export function createOptionsContextValue({
     startTime: Date;
     duration: number;
     endDate?: Date | null;
+    maxYesVotes?: number | null;
   }[];
   /**
    * The poll's zone: set means options are fixed instants shown in the
@@ -163,6 +164,7 @@ export function createOptionsContextValue({
 
         return {
           optionId: option.id,
+          maxYesVotes: option.maxYesVotes ?? null,
           type: "timeSlot",
           startTime: formatDateTime(option.startTime, {
             preset: "time",
@@ -200,6 +202,7 @@ export function createOptionsContextValue({
 
         return {
           optionId: option.id,
+          maxYesVotes: option.maxYesVotes ?? null,
           type: "date",
           month: parts.month,
           day: parts.day,

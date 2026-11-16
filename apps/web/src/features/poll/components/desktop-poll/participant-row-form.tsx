@@ -6,6 +6,7 @@ import * as React from "react";
 import { Controller } from "react-hook-form";
 
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
+import { useParticipants } from "@/features/poll/client";
 import {
   Participant,
   ParticipantName,
@@ -34,9 +35,12 @@ const ParticipantRowForm = ({
 }: ParticipantRowFormProps) => {
   const { t } = useTranslation();
 
-  const { optionIds, poll } = usePoll();
+  const { optionIds, poll, getScore } = usePoll();
+  const { participants } = useParticipants();
   const { options } = useOptions();
   const form = useVotingForm();
+  const participantId = form.watch("participantId");
+  const participant = participants.find(({ id }) => id === participantId);
 
   React.useEffect(() => {
     function cancel(e: KeyboardEvent) {
@@ -117,6 +121,13 @@ const ParticipantRowForm = ({
       </td>
       {optionIds.map((optionId, i) => {
         const option = options[i];
+        const isFull =
+          option != null &&
+          option.maxYesVotes !== null &&
+          getScore(optionId).yes >= option.maxYesVotes;
+        const hasExistingYesVote = participant?.votes.some(
+          (vote) => vote.optionId === optionId && vote.type === "yes",
+        );
         return (
           <td
             key={optionId}
@@ -134,6 +145,7 @@ const ParticipantRowForm = ({
                     }
                     value={field.value?.type}
                     allowTentativeVotes={poll.allowTentativeVotes}
+                    allowYesVote={!isFull || hasExistingYesVote}
                     onChange={(vote) => {
                       field.onChange({ optionId, type: vote });
                     }}

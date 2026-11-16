@@ -2,12 +2,16 @@ export type DateOption = {
   type: "date";
   date: string;
   endDate?: string;
+  id?: string;
+  maxYesVotes?: number | null;
 };
 
 export type TimeOption = {
   type: "timeSlot";
   start: string;
   end: string;
+  id?: string;
+  maxYesVotes?: number | null;
 };
 
 export type DateTimeOption = DateOption | TimeOption;

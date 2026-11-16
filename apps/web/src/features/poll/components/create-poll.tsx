@@ -288,6 +288,7 @@ export const CreatePoll = ({
                 endDate: option.type === "timeSlot" ? option.end : undefined,
                 rangeEndDate:
                   option.type === "date" ? option.endDate : undefined,
+                maxYesVotes: option.maxYesVotes ?? null,
               })),
             });
 

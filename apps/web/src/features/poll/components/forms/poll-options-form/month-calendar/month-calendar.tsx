@@ -142,28 +142,42 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
     if (!form.getValues("timeZone")) {
       form.setValue("timeZone", defaultTimeZone);
     }
-    // A date range means each day is part of the choice; preserve those days
-    // when switching the poll to time slots instead of silently dropping them.
-    const starts = new Set(
-      options.flatMap((option) => {
-        if (option.type === "timeSlot") {
-          return [option.start];
+    // Preserve each day in a range when switching to time slots.
+    const starts = new Map<
+      string,
+      { start: string; id?: string; maxYesVotes?: number | null }
+    >();
+    options.forEach((option) => {
+      if (option.type === "timeSlot") {
+        starts.set(option.start, {
+          start: option.start,
+          id: option.id,
+          maxYesVotes: option.maxYesVotes,
+        });
+        return;
+      }
+
+      const endDate = option.endDate ?? option.date;
+      let currentDate = dayjs(option.date);
+      while (currentDate.format("YYYY-MM-DD") <= endDate) {
+        const start = middayOf(currentDate.format("YYYY-MM-DD"));
+        if (!starts.has(start)) {
+          starts.set(start, {
+            start,
+            id: endDate === option.date ? option.id : undefined,
+            maxYesVotes: option.maxYesVotes,
+          });
         }
-        const dates: string[] = [];
-        const endDate = option.endDate ?? option.date;
-        let currentDate = dayjs(option.date);
-        while (currentDate.format("YYYY-MM-DD") <= endDate) {
-          dates.push(middayOf(currentDate.format("YYYY-MM-DD")));
-          currentDate = currentDate.add(1, "day");
-        }
-        return dates;
-      }),
-    );
+        currentDate = currentDate.add(1, "day");
+      }
+    });
     onChange(
-      [...starts].map((start) => ({
+      [...starts.values()].map(({ start, id, maxYesVotes }) => ({
         type: "timeSlot",
         start,
         end: addMinutesToWallTime(start, minutes),
+        id,
+        maxYesVotes,
       })),
     );
   };
